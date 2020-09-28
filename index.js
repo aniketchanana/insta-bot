@@ -1,3 +1,11 @@
+/**
+ * Features of programme
+ * 1.) Bot finds the person whom you are following but he/she is not following you
+ * 2.) Bot removes the person from following list who is not following you
+ * 
+ * NOTE :-- this programme is not efficient because it traverse following list 2 times you ha
+ */
+
 const {
   Builder,
   By,
@@ -18,7 +26,7 @@ const driver = new Builder()
   .build();
 
 function nullCheck(value) {
-  return value === '' || value === undefined || value === null;
+  return value === '' || value === undefined || value === null || value === 'PEOPLE' || value === 'HASHTAGS' || value === 'Verified';
 }
 
 async function login() {
@@ -51,10 +59,9 @@ async function getFollowersList(totalFollowers) {
       tempListOfFollowers = await (await driver).findElements(By.css('[role=dialog] li'));
     }
   }
-  const allElements = (await driver).findElements(By.css('[role=dialog] span'));
-
+  const allElements = (await driver).findElements(By.css('[role=dialog] [data-testid=user-avatar]'));
   return Promise.all((await allElements).map(ele => {
-    return ele.getText();
+    return ele.getAttribute("alt");
   }));
 }
 
@@ -71,10 +78,15 @@ async function getFollowingList(totalFollowing) {
       tempListOfFollowing = await (await driver).findElements(By.css('[role=dialog] li'));
     }
   }
-  const allElements = (await driver).findElements(By.css('[role=dialog] span'));
+  const allElements = (await driver).findElements(By.css('[role=dialog] [data-testid=user-avatar]'));
   return Promise.all((await allElements).map(ele => {
-    return ele.getText();
+    return ele.getAttribute("alt");
   }));
+}
+
+function diffBetweenList(followerUserName, followingUserName) {
+  const diff = followingUserName.filter(user => !followerUserName.includes(user));
+  return diff;
 }
 
 async function main() {
@@ -87,37 +99,24 @@ async function main() {
 
     const [followers, following] = await getNumbers();
 
-    const followersList = await getFollowersList(followers);
+    let followersList = await getFollowersList(followers);
+    followersList = followersList.map(f => f.replace("\'s profile picture", ""));
     driver.get(`${BASE_URL}${USERNAME}`);
-    const followingList = await getFollowingList(following);
+    let followingList = await getFollowingList(following);
+    followingList = followingList.map(f => f.replace("\'s profile picture", ""));
 
-    const followerUserName = [];
-    let followerSet = new Set();
-    followersList.forEach((e, i) => {
-      if (!nullCheck(e.trim())) {
-        followerSet.add(e);
+    const diffList = diffBetweenList(followersList, followingList);
+
+    let index = 0;
+    const id = setInterval(async () => {
+      if (nullCheck(diffList[index]) || index >= diffList.length) {
+        clearInterval(id);
       }
-    });
-
-    const followingUserName = [];
-    let followingSet = new Set();
-    followingList.forEach((e, i) => {
-      if (!nullCheck(e.trim())) {
-        followingSet.add(e);
-      }
-    });
-
-    followerSet.forEach(e => {
-      followerUserName.push(e);
-    });
-    followingSet.forEach(e => {
-      followingUserName.push(e);
-    });
-
-    console.log(followerUserName);
-    console.log(followerUserName.length);
-    console.log(followingUserName);
-    console.log(followingUserName.length);
+      driver.get(`${BASE_URL}${diffList[index]}`);
+      index += 1;
+      await (await driver).findElement(By.css('[aria-label="Following"]')).click();
+      await (await driver).findElement(By.css('[role=dialog] button')).click();
+    }, 500);
   } catch (e) {
     console.log(e);
     (await driver).quit();
